@@ -18,7 +18,7 @@ def scrape_hma(uri):
 
     to_remove = '(<span class\="' + bad_class + '">[0-9]{1,3}</span>|<span style=\"display:(none|inline)\">[0-9]{1,3}</span>|<div style="display:none">[0-9]{1,3}</div>|<span class="[a-zA-Z0-9_\-]{1,4}">|</?span>|<span style="display: inline">)'
 
-    junk = re.compile(to_remove, flags=re.M)
+    junk = re.compile(to_remove, flags=re.M) # flag indicating multi-line text
     junk = junk.sub('', r.text)
     junk = junk.replace("\n", "")
 
