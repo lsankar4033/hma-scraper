@@ -1,12 +1,17 @@
 #!/usr/bin/env python
 
+from pymongo import MongoClient
+
 import requests
 import re
 import sys
 
-def scrape_hma(uri):
+MONGO_URI = 'mongodb://localhost:27017/'
+MONGO_DB = 'hma_proxies'
+
+def scrape_hma(uri, db):
     r = requests.get('http://proxylist.hidemyass.com/'+uri)
-    bad_class="("
+    bad_class='('
     for line in r.text.splitlines():
         class_name = re.search(r'\.([a-zA-Z0-9_\-]{4})\{display:none\}', line)
         if class_name is not None:
@@ -25,26 +30,32 @@ def scrape_hma(uri):
                            '<td>\s*([0-9]{2,6}).{100,1200}(socks4/5|HTTPS?)\s*</td>\s*' +
                            '<td nowrap>\s*(Low|Medium|None|High)', junk)
 
-    proxies_str = ''
     for src in proxy_src:
-        if src[3] == 'High': # Only pull high anonymity proxies
-            if src[2] == 'socks4/5':
-                proto = 'socks5h'
-            else:
-                proto = src[2].lower()
-            if src:
-                proxies_str += proto + '://' +src[0] + ':' + src[1] + '\n'
+        (url, port, proto, anonymity) = src[:4]
+        proto = 'socks5h' if proto == 'socks4/5' else proto.lower() # socks4/5 -> socks5h
+        port = int(port)
 
-    return(proxies_str)
+        if anonymity == 'High': # Only store high anonymity proxies
+            db.proxies.update_one({'url': url,
+                                   'port': port},
+                                  {'$set':
+                                   {'anonymity': anonymity,
+                                    'protocol': proto}},
+                                  upsert = True)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     error = 'Input the number of pages to scrape. Ex:\npython hma-scraper.py 30'
+    db_client = MongoClient(MONGO_URI)
     try:
         if sys.argv[1].isdigit() == True:
             num_pages = int(sys.argv[1])
             for i in range(1, num_pages):
-                print(scrape_hma(str(i)), end = '')
+                scrape_hma(str(i), db_client[MONGO_DB])
         else:
             print(error)
+
     except:
         print(error)
+
+    finally:
+        db_client.close()
