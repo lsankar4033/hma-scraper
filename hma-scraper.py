@@ -31,12 +31,12 @@ def scrape_hma(uri, db):
                            '<td nowrap>\s*(Low|Medium|None|High)', junk)
 
     for src in proxy_src:
-        (url, port, proto, anonymity) = src[:4]
+        (ip, port, proto, anonymity) = src[:4]
         proto = 'socks5h' if proto == 'socks4/5' else proto.lower() # socks4/5 -> socks5h
         port = int(port)
 
         if anonymity == 'High': # Only store high anonymity proxies
-            db.proxies.update_one({'url': url,
+            db.proxies.update_one({'ip': ip,
                                    'port': port},
                                   {'$set':
                                    {'anonymity': anonymity,
