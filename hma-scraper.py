@@ -1,16 +1,13 @@
-#!/usr/bin/env python
-
-from pymongo import MongoClient
+from itertools import chain
 
 import requests
 import re
 import sys
 
-MONGO_URI = 'mongodb://localhost:27017/'
-MONGO_DB = 'hma_proxies'
+HMA_URI = 'http://proxylist.hidemyass.com/'
 
-def scrape_hma(uri, db):
-    r = requests.get('http://proxylist.hidemyass.com/'+uri)
+def get_proxies_from_page(page):
+    r = requests.get(HMA_URI + page)
     bad_class='('
     for line in r.text.splitlines():
         class_name = re.search(r'\.([a-zA-Z0-9_\-]{4})\{display:none\}', line)
@@ -30,32 +27,26 @@ def scrape_hma(uri, db):
                            '<td>\s*([0-9]{2,6}).{100,1200}(socks4/5|HTTPS?)\s*</td>\s*' +
                            '<td nowrap>\s*(Low|Medium|None|High)', junk)
 
+    proxies = []
     for src in proxy_src:
         (ip, port, proto, anonymity) = src[:4]
         proto = 'socks5h' if proto == 'socks4/5' else proto.lower() # socks4/5 -> socks5h
         port = int(port)
 
         if anonymity == 'High': # Only store high anonymity proxies
-            db.proxies.update_one({'ip': ip,
-                                   'port': port},
-                                  {'$set':
-                                   {'anonymity': anonymity,
-                                    'protocol': proto}},
-                                  upsert = True)
+            proxies.append("{}://{}:{}".format(proto, ip, port))
+    return proxies
 
 if __name__ == '__main__':
     error = 'Input the number of pages to scrape. Ex:\npython hma-scraper.py 30'
-    db_client = MongoClient(MONGO_URI)
     try:
         if sys.argv[1].isdigit() == True:
             num_pages = int(sys.argv[1])
-            for i in range(1, num_pages):
-                scrape_hma(str(i), db_client[MONGO_DB])
+            all_proxies = chain.from_iterable((get_proxies_from_page(str(i)) for i in range(1, num_pages + 1)))
+            print("\n".join(all_proxies))
+
         else:
             print(error)
 
     except:
         print(error)
-
-    finally:
-        db_client.close()
